@@ -11,7 +11,7 @@ import UIKit
 /// 表情富文本附件（Emotion 模块）。
 ///
 /// 职责：在 `NSAttributedString` 中占位一个 attachment 字符，同时记住原始 key。
-/// 用法：由 `EmotionHelper` 创建并写入 `UITextView`；导出 `UITextView.normalText` 时
+/// 用法：由 `EmotionHelper` 创建并写入 `ChatInputTextView`；导出 `normalText` 时
 /// 将附件还原为 `displayText`（如 `[微笑]`），便于发送与存储。
 open class EmotionAttachment: NSTextAttachment {
 

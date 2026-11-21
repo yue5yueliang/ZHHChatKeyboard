@@ -21,7 +21,7 @@ final class EmotionHelperTests: XCTestCase {
     }
 
     func testNormalTextExportsAttachmentDisplayText() {
-        let textView = UITextView()
+        let textView = ChatInputTextView()
         textView.font = .systemFont(ofSize: 16)
         textView.textColor = .black
         let attachment = EmotionAttachment()
@@ -33,7 +33,7 @@ final class EmotionHelperTests: XCTestCase {
     }
 
     func testDeleteEmotionReturnsFalseAtStart() {
-        let textView = UITextView()
+        let textView = ChatInputTextView()
         textView.text = ""
         textView.selectedRange = NSRange(location: 0, length: 0)
         XCTAssertFalse(textView.deleteEmotion())

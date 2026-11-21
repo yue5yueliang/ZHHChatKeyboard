@@ -249,8 +249,11 @@ open class EmotionBoardView: UIView {
         addSubview(groupTabView)
         addSubview(tabBottomLineView)
 
+        // 固定高度用 999：面板由外层 frame 动画时高度会短暂 < Tab+分割线，避免与 autoresizing 打架
         tabHeightConstraint = groupTabView.heightAnchor.constraint(equalToConstant: Self.tabHeight)
+        tabHeightConstraint.priority = UILayoutPriority(999)
         tabLineHeightConstraint = tabBottomLineView.heightAnchor.constraint(equalToConstant: ChatKeyboardCommon.hairlineHeight)
+        tabLineHeightConstraint.priority = UILayoutPriority(999)
         NSLayoutConstraint.activate([
             groupTabView.topAnchor.constraint(equalTo: topAnchor),
             groupTabView.leadingAnchor.constraint(equalTo: leadingAnchor),

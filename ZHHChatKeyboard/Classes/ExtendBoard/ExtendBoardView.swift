@@ -138,6 +138,9 @@ open class ExtendBoardView: UIView {
         pageControl.translatesAutoresizingMaskIntoConstraints = false
         addSubview(collectionView)
         addSubview(pageControl)
+        // PageControl 固定高用 999：外层 frame 动画高度短暂为 0 时，避免与 autoresizing 冲突刷屏
+        let pageControlHeightConstraint = pageControl.heightAnchor.constraint(equalToConstant: pageControlHeight)
+        pageControlHeightConstraint.priority = UILayoutPriority(999)
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: topAnchor),
             collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -146,7 +149,7 @@ open class ExtendBoardView: UIView {
 
             pageControl.leadingAnchor.constraint(equalTo: leadingAnchor),
             pageControl.trailingAnchor.constraint(equalTo: trailingAnchor),
-            pageControl.heightAnchor.constraint(equalToConstant: pageControlHeight),
+            pageControlHeightConstraint,
             pageControl.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor)
         ])
     }

@@ -27,7 +27,7 @@ final class SubmitToolBarView: UIView {
     }
 
     /// 对外输入框（Manager.bindTextView）
-    let textView = PlaceholderTextView()
+    let textView = ChatInputTextView()
 
     private let inputCard = UIView()
     private let toolRow = UIStackView()

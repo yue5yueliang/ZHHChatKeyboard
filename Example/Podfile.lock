@@ -3,7 +3,9 @@ PODS:
   - LookinServer/Swift (1.2.8):
     - LookinServer/Core
   - SnapKit (5.7.1)
-  - ZHHChatKeyboard (1.0.0)
+  - ZHHChatKeyboard (1.0.0):
+    - ZHHChatKeyboard/Source (= 1.0.0)
+  - ZHHChatKeyboard/Source (1.0.0)
 
 DEPENDENCIES:
   - LookinServer/Swift
@@ -22,7 +24,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   LookinServer: 1b2b61c6402ae29fa22182d48f5cd067b4e99e80
   SnapKit: d612e99e678a2d3b95bf60b0705ed0a35c03484a
-  ZHHChatKeyboard: 048c9c23f17805acfe3596e84473f98b5faa48f1
+  ZHHChatKeyboard: 3e5a6099bee486660f54425b2d27f4ae7db9a36b
 
 PODFILE CHECKSUM: 76f0a69c277065526d3dbc757497fb3aad830e4c
 

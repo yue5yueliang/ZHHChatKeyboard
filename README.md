@@ -79,7 +79,7 @@ open ZHHChatKeyboard.xcworkspace
 | `KeyboardBaseManager` | 宿主挂载与安全区等基础能力 |
 | `KeyboardManagerDataSource` / `Delegate` | 面板提供与高度回调 |
 | `ChatInputBarView` / `ChatInputBarConfiguration` | 输入条与配置 |
-| `PlaceholderTextView` | 带占位的输入框 |
+| `ChatInputTextView` | 默认输入框（占位 / 可选字数上限） |
 | `Emotion` / `EmotionAttachment` / `EmotionHelper` | 表情模型与图文互转 |
 | `EmotionBoardView` | 表情面板 |
 | `ExtendBoardView` / `ExtendBoardItem` | 扩展面板 |

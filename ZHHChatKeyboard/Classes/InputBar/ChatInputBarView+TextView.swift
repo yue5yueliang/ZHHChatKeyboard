@@ -47,11 +47,17 @@ extension ChatInputBarView: UITextViewDelegate {
         delegate?.chatInputBarView(self, textViewDidChange: textView)
     }
 
-    /// 拦截回车：开启 `keyboardSendEnabled` 时走发送回调，不插入换行
+    /// 拦截回车：开启 `keyboardSendEnabled` 时走发送回调，不插入换行；并尊重默认输入框字数上限
     public func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
         if keyboardSendEnabled && text == "\n" {
             // 回车 → 纯文本发送，不插入换行符
-            delegate?.chatInputBarView(self, onKeyboardSendClick: textView.normalText)
+            let sendText = (textView as? ChatInputTextView)?.normalText ?? (textView.text ?? "")
+            delegate?.chatInputBarView(self, onKeyboardSendClick: sendText)
+            return false
+        }
+        // 默认 ChatInputTextView：字数上限在 shouldChange 再拦一层（覆盖部分系统插入路径）
+        if let input = textView as? ChatInputTextView,
+           !input.allowsReplacing(range, with: text) {
             return false
         }
         return true

@@ -78,15 +78,17 @@ public struct ChatInputBarConfiguration {
     public var centerContentView: UIView?
     /// 输入容器内右下角小视图（可选）
     public var inputInsetRightView: UIView?
-    /// 自定义输入框；nil 时用内置 `PlaceholderTextView`
+    /// 自定义输入框；nil 时用内置 `ChatInputTextView`。表情插删 / `normalText` 需为 `ChatInputTextView` 子类
     public var customTextView: UITextView?
 
     // MARK: - 文案与开关
 
     /// 「按住说话」文案；nil 时用「按住说话」
     public var speakButtonTitle: String?
-    /// 默认输入框 placeholder（仅默认 `PlaceholderTextView` 生效）
+    /// 默认输入框 placeholder（仅默认 `ChatInputTextView` 生效）
     public var placeholder: String?
+    /// 默认输入框最大字数（`String.count`）；`nil` 不限制，仅默认 `ChatInputTextView` 生效
+    public var maxTextLength: Int?
     /// 是否隐藏语音按钮
     public var voiceButtonHidden: Bool
     /// 语音按钮位置；默认左侧。右侧三按钮胶囊用 `.trailing`
@@ -135,6 +137,7 @@ public struct ChatInputBarConfiguration {
         customTextView: UITextView? = nil,
         speakButtonTitle: String? = nil,
         placeholder: String? = nil,
+        maxTextLength: Int? = nil,
         voiceButtonHidden: Bool = false,
         voiceButtonPlacement: ChatInputBarVoicePlacement = .leading,
         extendButtonHidden: Bool = false,
@@ -176,6 +179,7 @@ public struct ChatInputBarConfiguration {
         // 文案与开关
         self.speakButtonTitle = speakButtonTitle
         self.placeholder = placeholder
+        self.maxTextLength = maxTextLength
         self.voiceButtonHidden = voiceButtonHidden
         self.voiceButtonPlacement = voiceButtonPlacement
         self.extendButtonHidden = extendButtonHidden

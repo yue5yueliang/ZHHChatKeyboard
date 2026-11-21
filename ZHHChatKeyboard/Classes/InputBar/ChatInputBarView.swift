@@ -63,7 +63,7 @@ open class ChatInputBarView: UIView {
 
     // MARK: - 公开状态
 
-    /// 输入框（默认 `PlaceholderTextView`，或配置里的 `customTextView`）
+    /// 输入框（默认 `ChatInputTextView`，或配置里的 `customTextView`）
     public internal(set) var inputTextView: UITextView!
     /// 当前录音区视图：`customRecordView` 或默认「按住说话」按钮
     public internal(set) var recordCenterView: UIView?
@@ -246,9 +246,12 @@ open class ChatInputBarView: UIView {
             record.setTitleColor(configuration.recordButtonTitleColor, for: .normal)
         }
 
-        // placeholder（仅默认 PlaceholderTextView）
-        if let placeholderView = inputTextView as? PlaceholderTextView, let placeholder = configuration.placeholder {
-            placeholderView.placeholder = placeholder
+        // placeholder / 字数（仅默认 ChatInputTextView）
+        if let input = inputTextView as? ChatInputTextView {
+            if let placeholder = configuration.placeholder {
+                input.placeholder = placeholder
+            }
+            input.maxTextLength = configuration.maxTextLength
         }
 
         keyboardSendEnabled = configuration.keyboardSendEnabled
@@ -302,15 +305,24 @@ open class ChatInputBarView: UIView {
     /// 收起输入框焦点
     public func textViewResignFirstResponder() { inputTextView.resignFirstResponder() }
 
-    // 文本与表情
-    /// 导出纯文本（表情 attachment 还原为 `[微笑]`）
-    public func textViewInputNormalText() -> String { inputTextView.normalText }
+    // 文本与表情（默认 / 自定义输入框需为 `ChatInputTextView` 及其子类）
+    /// 导出纯文本（表情 attachment 还原为 `[微笑]`）；非 `ChatInputTextView` 时回退 `text`
+    public func textViewInputNormalText() -> String {
+        (inputTextView as? ChatInputTextView)?.normalText ?? (inputTextView.text ?? "")
+    }
     /// 在光标处插入表情富文本
-    public func insertEmotionAttributedString(_ attributedString: NSAttributedString) { inputTextView.insertEmotionAttributedString(attributedString) }
+    public func insertEmotionAttributedString(_ attributedString: NSAttributedString) {
+        (inputTextView as? ChatInputTextView)?.insertEmotionAttributedString(attributedString)
+    }
     /// 在光标处插入表情纯文本 key，如 `[微笑]`
-    public func insertEmotion(key: String) { inputTextView.insertEmotion(key: key) }
+    public func insertEmotion(key: String) {
+        (inputTextView as? ChatInputTextView)?.insertEmotion(key: key)
+    }
     /// 删除光标前一个表情片段（attachment 或 `[微笑]` 形式）；成功返回 true
-    @discardableResult public func deleteEmotion() -> Bool { inputTextView.deleteEmotion() }
+    @discardableResult
+    public func deleteEmotion() -> Bool {
+        (inputTextView as? ChatInputTextView)?.deleteEmotion() ?? false
+    }
 
     // 发送清空
     /// 发送后清空文本；返回动画时长（单行返回 0）

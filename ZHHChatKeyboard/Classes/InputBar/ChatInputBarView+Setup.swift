@@ -223,7 +223,7 @@ extension ChatInputBarView {
         textContainerView = container
         alignRightSendButtonToTextContainer()
 
-        // TextView：自定义优先，否则库内 PlaceholderTextView
+        // TextView：自定义优先，否则库内 ChatInputTextView
         let textView = makeInputTextView(from: configuration)
         configureTextViewInsets(textView, metrics: metrics)
         textView.delegate = self
@@ -344,7 +344,7 @@ extension ChatInputBarView {
         rightViewsMinX = frame.minX
     }
 
-    /// 创建输入框：自定义 TextView 或库内 PlaceholderTextView
+    /// 创建输入框：自定义 TextView 或库内 ChatInputTextView
     func makeInputTextView(from configuration: ChatInputBarConfiguration) -> UITextView {
         if let custom = configuration.customTextView {
             if custom.font == nil {
@@ -353,15 +353,16 @@ extension ChatInputBarView {
             return custom
         }
 
-        let placeholder = PlaceholderTextView(frame: .zero)
-        placeholder.font = ChatInputBarView.textFont
-        placeholder.returnKeyType = .send
-        placeholder.scrollsToTop = false
-        placeholder.textAlignment = .left
-        placeholder.enablesReturnKeyAutomatically = true
-        placeholder.backgroundColor = .clear
-        placeholder.placeholder = configuration.placeholder
-        return placeholder
+        let input = ChatInputTextView(frame: .zero)
+        input.font = ChatInputBarView.textFont
+        input.returnKeyType = .send
+        input.scrollsToTop = false
+        input.textAlignment = .left
+        input.enablesReturnKeyAutomatically = true
+        input.backgroundColor = .clear
+        input.placeholder = configuration.placeholder
+        input.maxTextLength = configuration.maxTextLength
+        return input
     }
 
     /// 按字高与风格设置 TextView 内边距（胶囊左语音时左边距为 0）
