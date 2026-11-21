@@ -118,7 +118,7 @@ func applySendButtonStyle() {
     }
 }
 
-    /// 删/发相对所在 page 右下角排布（随该页横滑，而不是浮在整板）
+    /// 删/发钉在所在 page 右下角（Auto Layout 贴底；切板高度动画时贴屏底不跟着「从中间往下挪」）
     func layoutActionButtonsIfNeeded() {
         // 没有「写入输入框」组时整组隐藏
         guard
@@ -129,26 +129,43 @@ func applySendButtonStyle() {
             return
         }
 
-        // 确保挂在正确 page 上（重建后可能被挪走）
         let page = groupPageViews[pageIndex]
-        if actionButtonsView.superview !== page {
-            page.addSubview(actionButtonsView)
-        }
-
-        // page 尚未完成布局时不要排按钮，否则负坐标会让 alpha 遮罩把整页表情算成透明
+        // page 尚未完成布局时不要排按钮，否则遮罩会把整页表情算成透明
         guard page.bounds.width > 1, page.bounds.height > 1 else {
             actionButtonsView.isHidden = true
             return
         }
+
+        let buttonSpacing: CGFloat = 10
+        let bottomInset = resolvedBottomSafeInset
+        let containerW = Self.buttonWidth * 2 + buttonSpacing + sendButtonMargins.right
+        let containerH = Self.buttonHeight + sendButtonMargins.bottom + bottomInset
+
+        // 换页或尚未安装：用约束钉在 page 右下，高度变化时由 bottom 锚点稳住屏位
+        if actionButtonsInstalledPage !== page || actionButtonsView.superview !== page {
+            actionButtonsView.removeFromSuperview()
+            actionButtonsView.translatesAutoresizingMaskIntoConstraints = false
+            page.addSubview(actionButtonsView)
+            let width = actionButtonsView.widthAnchor.constraint(equalToConstant: containerW)
+            let height = actionButtonsView.heightAnchor.constraint(equalToConstant: containerH)
+            width.priority = UILayoutPriority(999)
+            height.priority = UILayoutPriority(999)
+            NSLayoutConstraint.activate([
+                width,
+                height,
+                actionButtonsView.trailingAnchor.constraint(equalTo: page.trailingAnchor),
+                actionButtonsView.bottomAnchor.constraint(equalTo: page.bottomAnchor)
+            ])
+            actionButtonsWidthConstraint = width
+            actionButtonsHeightConstraint = height
+            actionButtonsInstalledPage = page
+        } else {
+            actionButtonsWidthConstraint?.constant = containerW
+            actionButtonsHeightConstraint?.constant = containerH
+        }
         actionButtonsView.isHidden = false
 
-        // 容器尺寸：两钮宽 + 间距 + 右边距；高度含底边距与安全区（容器仍用 frame 贴 page 右下，随翻页移动）
-        let buttonSpacing: CGFloat = 10
-        let containerW = Self.buttonWidth * 2 + buttonSpacing + sendButtonMargins.right
-        let containerH = Self.buttonHeight + sendButtonMargins.bottom + safeAreaInsets.bottom
-        actionButtonsView.frame = CGRect(x: page.bounds.width - containerW, y: page.bounds.height - containerH, width: containerW, height: containerH)
-
-        // 钮内用 Auto Layout：发送靠右，删除在其左
+        // 钮内：发送靠右，删除在其左（只装一次）
         if sendButton.translatesAutoresizingMaskIntoConstraints {
             sendButton.translatesAutoresizingMaskIntoConstraints = false
             deleteButton.translatesAutoresizingMaskIntoConstraints = false
@@ -165,7 +182,10 @@ func applySendButtonStyle() {
             ])
         }
 
-        // 盖在表情网格之上，保证可点
+        // 立刻解出 frame，供首进板同步压遮罩（不能等下一轮 layout）
+        page.layoutIfNeeded()
+        actionButtonsView.layoutIfNeeded()
+        updateActionButtonsVeil()
         page.bringSubviewToFront(actionButtonsView)
     }
 }

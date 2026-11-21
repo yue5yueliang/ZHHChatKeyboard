@@ -63,9 +63,9 @@ public struct ChatInputBarConfiguration {
     public var emotionSwitchImage: UIImage?
     /// 扩展「+」按钮图；nil 用 `ChatKeyboardIcon.extendSwitch`
     public var extendSwitchImage: UIImage?
-    /// 默认「按住说话」正常底图；nil 用 `ChatKeyboardIcon.recordBackground`
+    /// 默认「按住说话」正常底图；普通样式 nil 用库默认白底；胶囊样式 nil 表示与胶囊同色（不铺底图）
     public var recordBackgroundImage: UIImage?
-    /// 默认「按住说话」按下底图；nil 用 `ChatKeyboardIcon.recordBackgroundPressed`
+    /// 默认「按住说话」按下底图；普通样式 nil 用库默认；胶囊且未设正常底图时同样不铺
     public var recordBackgroundPressedImage: UIImage?
 
     // MARK: - 自定义视图插槽

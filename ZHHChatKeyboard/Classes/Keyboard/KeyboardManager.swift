@@ -447,24 +447,35 @@ open class KeyboardManager: KeyboardBaseManager {
         let toY = hostH - toH
         let startFrame = keyboardView.frame
         let startBoardH = max(0, startFrame.height - barH)
+        // 已有面板在展示（扩展 ↔ 表情）：槽内钉死只插值高度，禁止再「槽外上滑」否则会像从中部下沉
+        // 首次从键盘 / 收起态打开：仍从槽底外上滑
+        let isBoardToBoardSwitch = startBoardH > safeAreaInsetsBottom + 1
 
-        // 无动画摆位：起点保持当前外框高度，避免输入条瞬间跳变；面板仍从当前槽底外上滑
+        // 无动画摆位：起点保持当前外框高度，避免输入条瞬间跳变
         UIView.performWithoutAnimation {
             keyboardView.frame = startFrame
             keyboardView.layoutContent(barHeight: barH, boardHeight: startBoardH, width: width, pinBoardViewInSlot: false)
             keyboardView.displayBoardView(boardView)
-            keyboardView.placeBoardViewBelowKeyboardView()
+            if isBoardToBoardSwitch {
+                keyboardView.pinBoardViewToSlot()
+            } else {
+                keyboardView.placeBoardViewBelowKeyboardView()
+            }
             keyboardView.applyBackgroundColor()
             keyboardView.layoutIfNeeded()
         }
 
-        // 动画：槽高插值与面板上滑，chatInputBar 平滑位移
+        // 动画：槽高插值；板间切换保持贴槽，首次打开再上滑入槽
         UIView.animate(withDuration: 0.25, delay: 0, options: .curveEaseOut, animations: { [weak self] in
             guard let self else { return }
             keyboardView.layoutContent(barHeight: barH, boardHeight: boardH, width: width, pinBoardViewInSlot: false)
             keyboardView.pinBoardViewToSlot()
             keyboardView.frame = CGRect(x: 0, y: toY, width: width, height: toH)
             self.callBackWholeInputViewHeightDidChange(self.callbackHeight(), reason: .boardDidShow)
+        }, completion: { _ in
+            // 安全区 / 页高在动画结束后才稳定；强制表情板重排删发与遮罩
+            boardView?.setNeedsLayout()
+            boardView?.layoutIfNeeded()
         })
     }
 

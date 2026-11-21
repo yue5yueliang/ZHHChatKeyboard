@@ -91,7 +91,13 @@ open class EmotionBoardView: UIView {
 
     /// 面板背景色（表情网格区域）
     public var boardBackgroundColor: UIColor = ChatKeyboardColor.boardBackground {
-        didSet { backgroundColor = boardBackgroundColor }
+        didSet {
+            backgroundColor = boardBackgroundColor
+            // 删发区柔光罩跟面板色走
+            if actionButtonsVeilLayer.superlayer != nil {
+                updateActionButtonsVeil()
+            }
+        }
     }
     /// 顶部表情组 Tab 条背景色（默认与输入条同色，连成一块）
     public var tabBarBackgroundColor: UIColor = ChatKeyboardColor.barBackground {
@@ -189,13 +195,29 @@ open class EmotionBoardView: UIView {
     }()
 
     /// 删/发按钮容器（挂在「写入输入框」那一组的 page 上，随横滑翻页带走；自定义 GIF 组不显示）
+    /// 底色透明；底层柔光罩 + 表情格 alpha 共同保证不漏，边缘不至于一刀切成灰块
     public private(set) lazy var actionButtonsView: UIView = {
         let view = UIView()
         view.backgroundColor = .clear
         view.isUserInteractionEnabled = true
+        view.layer.insertSublayer(actionButtonsVeilLayer, at: 0)
         view.addSubview(deleteButton)
         view.addSubview(sendButton)
+        // 懒加载时先刷一版柔光罩色（frame 仍可能为 0，layout 时再更新）
+        let top = UIColor.clear.cgColor
+        let mid = boardBackgroundColor.withAlphaComponent(0.35).cgColor
+        let bottom = boardBackgroundColor.withAlphaComponent(0.92).cgColor
+        actionButtonsVeilLayer.colors = [top, mid, bottom]
+        actionButtonsVeilLayer.locations = [0, 0.4, 1]
         return view
+    }()
+
+    /// 删发容器内柔光罩（上沿透明 → 下沿贴近面板色），兜住安全区漏光
+    let actionButtonsVeilLayer: CAGradientLayer = {
+        let layer = CAGradientLayer()
+        layer.startPoint = CGPoint(x: 0.5, y: 0)
+        layer.endPoint = CGPoint(x: 0.5, y: 1)
+        return layer
     }()
 
     /// 发送按钮（样式由 `sendButton*` 系列属性 + `UIButton.Configuration` 驱动，点击走 `handleSend` → delegate）
@@ -227,6 +249,11 @@ open class EmotionBoardView: UIView {
     var failedImageIdentifiers: Set<String> = []
     /// 承载删/发按钮的 page 下标（通常是默认小表情组）
     var actionButtonsPageIndex: Int?
+    /// 删/发容器当前钉在哪一页（换页时需重装约束）
+    var actionButtonsInstalledPage: UIView?
+    /// 删/发容器宽 / 高约束（高度含安全区，切板时只改 constant）
+    var actionButtonsWidthConstraint: NSLayoutConstraint?
+    var actionButtonsHeightConstraint: NSLayoutConstraint?
 
     /// Tab 区高度约束（无 Tab 时置 0）
     var tabHeightConstraint: NSLayoutConstraint!
@@ -333,21 +360,63 @@ open class EmotionBoardView: UIView {
         }
         tabBottomLineView.isHidden = false
 
-        // 先让分页 cell / page 拿到真实尺寸，再配网格与删发按钮，避免空页或全透明
+        // 先让分页拿到真实尺寸
         pageContentView.layoutIfNeeded()
 
-        // 尺寸变化后刷新各页网格布局，并把删/发钉在「写入输入框」那一页上
+        // 先钉删/发并解出真实 frame，再 reload；cellForItem / willDisplay 才能同步压 alpha
+        layoutActionButtonsIfNeeded()
+
+        // 尺寸变化后刷新各页网格（reload 会走 cellForItem → 单格同步遮罩）
         for (index, page) in groupPageViews.enumerated() where groups.indices.contains(index) {
             configurePageView(page, at: index)
         }
-        layoutActionButtonsIfNeeded()
 
         // Tab / 分割线盖在分页之上，避免横滑时被表情盖住
         bringSubviewToFront(groupTabView)
         bringSubviewToFront(tabBottomLineView)
 
-        // 删/发按钮区域对应的 cell 降透明，避免与按钮叠层抢点
+        // 同步压遮罩；下一帧只校正布局/柔光罩，不再做 alpha 淡入（避免切回先亮再暗）
         adjustEmotionsAlpha()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.layoutActionButtonsIfNeeded()
+            self.updateActionButtonsVeil()
+            self.adjustEmotionsAlpha()
+        }
+    }
+
+    open override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.hasDifferentColorAppearance(comparedTo: traitCollection) == true else { return }
+        updateActionButtonsVeil()
+    }
+
+    /// 切板动画结束后安全区常晚一拍到达；必须重排删/发与网格底 inset
+    open override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        setNeedsLayout()
+    }
+}
+
+// MARK: - 安全区
+
+extension EmotionBoardView {
+
+    /// 贴底布局用的底部安全区。
+    ///
+    /// 优先稳定的 window 安全区；视图自身 inset 异常偏大（槽外预布局）时丢弃，避免删/发容器被撑高。
+    var resolvedBottomSafeInset: CGFloat {
+        let viewBottom = safeAreaInsets.bottom
+        let windowBottom = ChatKeyboardCommon.safeAreaInsets(for: self).bottom
+        let raw: CGFloat
+        if viewBottom > 0, viewBottom <= 50 {
+            raw = viewBottom
+        } else if windowBottom > 0, windowBottom <= 50 {
+            raw = windowBottom
+        } else {
+            raw = 0
+        }
+        return raw
     }
 }
 

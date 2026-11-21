@@ -236,14 +236,19 @@ open class ChatInputBarView: UIView {
         emotionSwitchButton?.setBackgroundImage(keyboardImage, for: .selected)
         extendSwitchButton?.setBackgroundImage(extendImage, for: .normal)
 
-        // 默认录音按钮文案 / 底图 / 字色
+        // 默认录音按钮文案 / 底图 / 字色（胶囊未自定义底图时与胶囊同色，不铺白底）
         if let record = recordCenterView as? UIButton, configuration.customRecordView == nil {
-            let recordNormal = configuration.recordBackgroundImage ?? ChatKeyboardIcon.recordBackground
-            let recordPressed = configuration.recordBackgroundPressedImage ?? ChatKeyboardIcon.recordBackgroundPressed
+            let useCapsuleBlend = layoutStyle == .capsule && configuration.recordBackgroundImage == nil
+            let recordNormal = useCapsuleBlend ? nil : (configuration.recordBackgroundImage ?? ChatKeyboardIcon.recordBackground)
+            let recordPressed = useCapsuleBlend ? nil : (configuration.recordBackgroundPressedImage ?? ChatKeyboardIcon.recordBackgroundPressed)
+            record.backgroundColor = .clear
             record.setBackgroundImage(recordNormal, for: .normal)
             record.setBackgroundImage(recordPressed, for: .highlighted)
             record.setTitle(configuration.speakButtonTitle ?? "按住说话", for: .normal)
             record.setTitleColor(configuration.recordButtonTitleColor, for: .normal)
+            record.layer.cornerRadius = configuration.capsuleCornerRadius
+            record.layer.cornerCurve = .continuous
+            record.clipsToBounds = true
         }
 
         // placeholder / 字数（仅默认 ChatInputTextView）

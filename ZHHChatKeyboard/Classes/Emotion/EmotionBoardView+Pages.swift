@@ -14,19 +14,19 @@ extension EmotionBoardView {
 
     /// 按 `groups` 重建各页 View，注入 `ChatKeyboardPageView` 并挂载删/发容器
     func rebuildPageViews() {
-        // 先摘掉删/发容器，避免旧 page 残留引用
+        // 先摘掉删/发容器，避免旧 page 残留引用；约束由 `layoutActionButtonsIfNeeded` 重装
         actionButtonsView.removeFromSuperview()
+        actionButtonsInstalledPage = nil
+        actionButtonsWidthConstraint = nil
+        actionButtonsHeightConstraint = nil
 
         // 删/发只挂在 tapAction == .insertIntoInput 的那一组
         actionButtonsPageIndex = groups.firstIndex(where: { $0.tapAction == .insertIntoInput })
 
-        // 一组一页：配网格，并在目标页挂上删/发
+        // 一组一页：配网格；删/发在 layout 时钉到目标页底部
         groupPageViews = groups.indices.map { index in
             let page = EmotionGroupPageView()
             configurePageView(page, at: index)
-            if index == actionButtonsPageIndex {
-                page.addSubview(actionButtonsView)
-            }
             return page
         }
 
@@ -171,7 +171,7 @@ extension EmotionBoardView {
         return groupPageViews[selectedGroupIndex]
     }
 
-    /// 切换选中组：刷新 Tab、可选横滑分页，并在下一 runloop 更新遮罩 alpha
+    /// 切换选中组：刷新 Tab、可选横滑分页，并同步更新删/发遮罩（避免先闪后藏）
     /// - Parameters:
     ///   - index: 目标组下标
     ///   - scrollPages: true 时带动画滚动 `pageContentView`
@@ -188,9 +188,11 @@ extension EmotionBoardView {
             pageContentView.setCurrentIndex(index, animated: true)
         }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.adjustEmotionsAlpha()
-        }
+        layoutActionButtonsIfNeeded()
+        actionButtonsView.layoutIfNeeded()
+        updateActionButtonsVeil()
+        // 切组也瞬间压到目标 alpha，禁止先亮再暗
+        adjustEmotionsAlpha()
     }
 
     /// 为某一页计算网格布局并注入数据源、选中与滚动回调
@@ -214,7 +216,7 @@ extension EmotionBoardView {
         let layout = makeEmotionGridLayout(
             boardWidth: boardWidth,
             emotionSize: size,
-            bottomExtra: safeAreaInsets.bottom,
+            bottomExtra: resolvedBottomSafeInset,
             padding: isStickerLayout ? stickerPaddingInPage : paddingInPage,
             preferredGap: cellSpacing,
             verticalSpacing: cellSpacing,
@@ -249,12 +251,13 @@ extension EmotionBoardView {
                 guard let self, self.groups.indices.contains(index) else { return }
                 self.delegate?.emotionViewDidSelectAddButton(self, in: self.groups[index])
             },
-            // 滚动 / 显示后刷新删发遮罩 alpha
+            // 滚动 / 即将显示：同步压遮罩，禁止 async 造成「先闪后藏」
             onScroll: { [weak self] in
                 self?.adjustEmotionsAlpha()
             },
-            onDisplay: { [weak self] in
-                DispatchQueue.main.async { self?.adjustEmotionsAlpha() }
+            onDisplay: { [weak self, weak page] cell, indexPath in
+                guard let self, let page else { return }
+                self.applyEmotionOverlayAlpha(to: cell, at: indexPath, in: page)
             }
         )
     }

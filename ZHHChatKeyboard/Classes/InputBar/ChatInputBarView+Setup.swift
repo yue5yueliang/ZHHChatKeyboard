@@ -117,8 +117,9 @@ extension ChatInputBarView {
             keyboardImage: configuration.keyboardSwitchImage ?? ChatKeyboardIcon.keyboardSwitch,
             emotionImage: configuration.emotionSwitchImage ?? ChatKeyboardIcon.emotionSwitch,
             extendImage: configuration.extendSwitchImage ?? ChatKeyboardIcon.extendSwitch,
-            recordNormalImage: configuration.recordBackgroundImage ?? ChatKeyboardIcon.recordBackground,
-            recordPressedImage: configuration.recordBackgroundPressedImage ?? ChatKeyboardIcon.recordBackgroundPressed,
+            // 胶囊：未自定义底图时不铺白底，与胶囊同色；普通样式仍用默认录音底图
+            recordNormalImage: configuration.recordBackgroundImage ?? (isCapsule ? nil : ChatKeyboardIcon.recordBackground),
+            recordPressedImage: configuration.recordBackgroundPressedImage ?? (isCapsule ? nil : ChatKeyboardIcon.recordBackgroundPressed),
             showLeadingVoice: showLeadingVoice,
             showTrailingVoice: showTrailingVoice
         )
@@ -264,8 +265,11 @@ extension ChatInputBarView {
             let button = UIButton(type: .custom)
             button.frame = container.frame
             button.autoresizingMask = .flexibleWidth
-            button.layer.cornerRadius = metrics.isCapsule ? 0 : capsuleCornerRadius
+            // 标准 / 胶囊都要圆角：有底图时裁直角切图；胶囊无底图则露出胶囊色
+            button.layer.cornerRadius = capsuleCornerRadius
+            button.layer.cornerCurve = .continuous
             button.clipsToBounds = true
+            button.backgroundColor = .clear
             button.setBackgroundImage(metrics.recordNormalImage, for: .normal)
             button.setBackgroundImage(metrics.recordPressedImage, for: .highlighted)
             button.setTitle(configuration.speakButtonTitle ?? "按住说话", for: .normal)

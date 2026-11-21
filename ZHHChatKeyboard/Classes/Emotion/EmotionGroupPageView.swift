@@ -44,8 +44,8 @@ final class EmotionGroupPageView: UIView, UICollectionViewDataSource, UICollecti
     private var didSelectAdd: (() -> Void)?
     /// 竖向滚动时通知面板刷新删/发遮罩
     private var onScroll: (() -> Void)?
-    /// cell 即将显示时通知面板刷新遮罩（下一 runloop）
-    private var onDisplay: (() -> Void)?
+    /// cell 即将显示时回调，便于外层同步压删/发遮罩 alpha
+    private var onDisplay: ((UICollectionViewCell, IndexPath) -> Void)?
     /// 上次 layout 时的 bounds，用于判断是否需要 invalidate
     private var lastLayoutBounds: CGSize = .zero
 
@@ -128,7 +128,7 @@ final class EmotionGroupPageView: UIView, UICollectionViewDataSource, UICollecti
         didSelect: @escaping (Int) -> Void,
         didSelectAdd: @escaping () -> Void,
         onScroll: @escaping () -> Void,
-        onDisplay: @escaping () -> Void
+        onDisplay: @escaping (UICollectionViewCell, IndexPath) -> Void
     ) {
         // 写入数据与回调
         self.emotions = emotions
@@ -161,11 +161,15 @@ final class EmotionGroupPageView: UIView, UICollectionViewDataSource, UICollecti
             flow.minimumInteritemSpacing = layout.horizontalGap
             flow.invalidateLayout()
         }
-        collectionView.reloadData()
 
-        // 顶部附近：垂直 offset 拉回 -inset.top，水平不动
+        // 先落到正确 offset，再 reload；否则 cellForItem 里按 contentOffset 换算的删发遮罩会偏掉
         let inset = layout.contentInset
-        if inset.top > 0, wasNearTop || (previousOffset.y > -inset.top && previousOffset.y < 1) {
+        let shouldPinTop = inset.top > 0 && (wasNearTop || (previousOffset.y > -inset.top && previousOffset.y < 1))
+        if shouldPinTop {
+            collectionView.setContentOffset(CGPoint(x: previousOffset.x, y: -inset.top), animated: false)
+        }
+        collectionView.reloadData()
+        if shouldPinTop {
             collectionView.setContentOffset(CGPoint(x: previousOffset.x, y: -inset.top), animated: false)
         }
     }
@@ -184,11 +188,14 @@ final class EmotionGroupPageView: UIView, UICollectionViewDataSource, UICollecti
         // 首格「添加」占位
         if showsAddButton, indexPath.item == 0 {
             cell.configureAsAddButton(emotionSize: gridLayout.emotionSize)
+            // 同步压遮罩，避免 dequeue 后 alpha=1 先露出再被 willDisplay 压暗
+            onDisplay?(cell, indexPath)
             return cell
         }
 
         // 普通表情格：取图，缺图则异步请求
         guard let emotionIndex = emotionIndex(forItem: indexPath.item), emotions.indices.contains(emotionIndex) else {
+            onDisplay?(cell, indexPath)
             return cell
         }
         let emotion = emotions[emotionIndex]
@@ -199,12 +206,14 @@ final class EmotionGroupPageView: UIView, UICollectionViewDataSource, UICollecti
             emotionSize: gridLayout.emotionSize
         )
         requestImage?(emotion, indexPath)
+        // 出队即压正确 alpha（对齐 QK：按钮区透明，靠表情层渐隐）
+        onDisplay?(cell, indexPath)
         return cell
     }
 
-    /// cell 即将显示时通知外层刷新删/发遮罩
+    /// cell 即将显示时同步压遮罩，避免复用后 alpha=1 先闪一帧
     func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-        onDisplay?()
+        onDisplay?(cell, indexPath)
     }
 
     /// 选中表情或「添加」；alpha 过低或被遮罩禁用时忽略

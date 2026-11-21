@@ -183,9 +183,14 @@ extension ChatInputBarView {
     /// 录音区 / 中心插槽 / inset 右视图跟输入容器同步
     func syncAccessoryViewsWithTextContainer() {
         let containerFrame = textContainerView.frame
-        // 录音盖住输入区，高与 Y 跟容器
+        // 录音盖住输入区，高与 Y 跟容器；圆角跟配置走（避免切板 / 增高后被盖成直角）
         recordCenterView?.frame.size.height = containerFrame.height
         recordCenterView?.frame.origin.y = containerFrame.origin.y
+        if let record = recordCenterView as? UIButton {
+            record.layer.cornerRadius = capsuleCornerRadius
+            record.layer.cornerCurve = .continuous
+            record.clipsToBounds = true
+        }
         centerContentView?.frame.size.height = containerFrame.height
         centerContentView?.frame.origin.y = containerFrame.origin.y
         // 容器右侧小视图垂直居中

@@ -16,90 +16,135 @@ extension EmotionBoardView {
     func adjustEmotionsAlpha() {
         guard let pageView = currentPageView() else { return }
         let grid = pageView.collectionView
-        let layout = pageView.gridLayout
 
-        // 当前页没有删/发（如 GIF 组 / page 未就绪）：恢复可点，不做遮罩
-        let buttonsOnCurrentPage = actionButtonsPageIndex == selectedGroupIndex
-            && actionButtonsView.superview === pageView
-            && !actionButtonsView.isHidden
-            && pageView.bounds.width > 1
-            && actionButtonsView.bounds.width > 1
-        guard buttonsOnCurrentPage else {
+        // 按钮约束刚装上时强制出 frame，避免首次进板按零尺寸算成「无遮罩」
+        ensureActionButtonsLayout(on: pageView)
+        updateActionButtonsVeil()
+
+        guard isActionButtonsOverlayActive(on: pageView) else {
             for cell in grid.visibleCells {
-                CATransaction.begin()
-                CATransaction.setDisableActions(true)
-                cell.alpha = 1
-                CATransaction.commit()
-                cell.isUserInteractionEnabled = true
+                setEmotionCell(cell, alpha: 1, interactive: true)
             }
             return
         }
 
-        // 删/发在面板坐标系下的包围盒
-        let deleteFrame = actionButtonsView.convert(deleteButton.frame, to: self)
-        let sendFrame = actionButtonsView.convert(sendButton.frame, to: self)
-        let buttonGroupRect = CGRect(
-            x: min(deleteFrame.minX, sendFrame.minX),
-            y: min(deleteFrame.minY, sendFrame.minY),
-            width: max(deleteFrame.maxX, sendFrame.maxX) - min(deleteFrame.minX, sendFrame.minX),
-            height: max(deleteFrame.maxY, sendFrame.maxY) - min(deleteFrame.minY, sendFrame.minY)
-        )
-        guard buttonGroupRect.width > 0, buttonGroupRect.height > 0, layout.columns > 0 else { return }
-
-        // 转到网格坐标系，按列/行估算被按钮挡住的格子范围
-        let floatingRect = grid.convert(buttonGroupRect, from: self)
-        let columns = layout.columns
-        let emotionSize = layout.emotionSize
-        let rowHeight = layout.itemSize.height + layout.lineSpacing
-        let insetLeft = grid.contentInset.left
-        let insetTop = grid.contentInset.top
-        let columnIndexLeft = Int(ceil((floatingRect.minX - insetLeft) / max(emotionSize.width + layout.horizontalGap, 1))) - 1
-        let columnIndexRight = columns - 1
-        let rowIndexTop = (floatingRect.minY - insetTop) / max(rowHeight, 1) - 1
-
-        // 逐格：与按钮区相交则渐变 alpha，完全在下方则透明
         for cell in grid.visibleCells {
-            guard
-                let emotionCell = cell as? EmotionCollectionCell,
-                let indexPath = grid.indexPath(for: cell)
-            else { continue }
-
-            // 行列下标，并判断是否落在删/发遮罩列范围内
-            let row = indexPath.item / columns
-            let column = indexPath.item % columns
-            let underButtons = column >= columnIndexLeft && column <= columnIndexRight && CGFloat(row) > rowIndexTop
-
-            if underButtons {
-                if row == Int(ceil(rowIndexTop)) {
-                    // 临界行：按与按钮区重叠高度算二次曲线透明度
-                    let emotionFrame = emotionCell.convert(emotionCell.emotionImageFrame, to: grid)
-                    let intersectAreaHeight = floatingRect.minY - emotionFrame.minY
-                    let percent = intersectAreaHeight / max(emotionSize.height, 1)
-                    let opacity = max(0, min(1, percent * percent))
-
-                    // 关隐式动画，避免滚动时闪烁
-                    CATransaction.begin()
-                    CATransaction.setDisableActions(true)
-                    emotionCell.alpha = opacity
-                    CATransaction.commit()
-                    emotionCell.isUserInteractionEnabled = opacity > 0.05
-                } else {
-                    // 完全被按钮挡住：隐藏且不可点
-                    CATransaction.begin()
-                    CATransaction.setDisableActions(true)
-                    emotionCell.alpha = 0
-                    CATransaction.commit()
-                    emotionCell.isUserInteractionEnabled = false
-                }
-            } else {
-                // 未遮挡：全显可点
-                CATransaction.begin()
-                CATransaction.setDisableActions(true)
-                emotionCell.alpha = 1
-                CATransaction.commit()
-                emotionCell.isUserInteractionEnabled = true
-            }
+            guard let indexPath = grid.indexPath(for: cell) else { continue }
+            applyEmotionOverlayAlpha(to: cell, at: indexPath, in: pageView)
         }
+    }
+
+    /// 单格同步压遮罩：扩区保底不漏 + 按露出高度连续渐隐；必须瞬间到位，禁止先亮再暗
+    func applyEmotionOverlayAlpha(to cell: UICollectionViewCell, at indexPath: IndexPath, in pageView: EmotionGroupPageView) {
+        ensureActionButtonsLayout(on: pageView)
+
+        guard isActionButtonsOverlayActive(on: pageView) else {
+            setEmotionCell(cell, alpha: 1, interactive: true)
+            return
+        }
+
+        let layout = pageView.gridLayout
+        let columns = layout.columns
+        guard columns > 0 else {
+            setEmotionCell(cell, alpha: 1, interactive: true)
+            return
+        }
+        guard let floatingRect = actionButtonsFloatingRect(in: pageView.collectionView) else {
+            setEmotionCell(cell, alpha: 1, interactive: true)
+            return
+        }
+
+        let colPitch = layout.itemSize.width + layout.horizontalGap
+        let rowPitch = layout.itemSize.height + layout.lineSpacing
+        guard colPitch > 1, rowPitch > 1 else {
+            setEmotionCell(cell, alpha: 1, interactive: true)
+            return
+        }
+
+        // 水平仍按 QK：只压删发右侧若干列
+        let columnIndexLeft = Int(ceil(floatingRect.minX / colPitch)) - 1
+        let column = indexPath.item % columns
+        guard column >= columnIndexLeft, column <= columns - 1 else {
+            setEmotionCell(cell, alpha: 1, interactive: true)
+            return
+        }
+
+        // 垂直用几何连续算：临界带二次曲线，完全落入 → 0（不漏）
+        let row = indexPath.item / columns
+        let cellFrame = pageView.collectionView.layoutAttributesForItem(at: indexPath)?.frame
+            ?? CGRect(
+                x: CGFloat(column) * colPitch,
+                y: CGFloat(row) * rowPitch,
+                width: layout.itemSize.width,
+                height: layout.itemSize.height
+            )
+
+        let intersection = cellFrame.intersection(floatingRect)
+        guard !intersection.isNull, intersection.width > 0.5, intersection.height > 0.5 else {
+            setEmotionCell(cell, alpha: 1, interactive: true)
+            return
+        }
+
+        let emotionH = max(layout.emotionSize.height, 1)
+        let above = floatingRect.minY - cellFrame.minY
+        if above <= 0 {
+            setEmotionCell(cell, alpha: 0, interactive: false)
+            return
+        }
+
+        let percent = min(1, above / emotionH)
+        let opacity = percent * percent
+        setEmotionCell(cell, alpha: opacity, interactive: opacity > 0.05)
+    }
+
+    /// 当前页是否应启用删/发遮罩
+    func isActionButtonsOverlayActive(on pageView: EmotionGroupPageView) -> Bool {
+        actionButtonsPageIndex == selectedGroupIndex
+            && actionButtonsView.superview === pageView
+            && !actionButtonsView.isHidden
+            && pageView.bounds.width > 1
+            && actionButtonsView.bounds.width > 1
+    }
+
+    /// 装约束后立刻算出删/发真实 frame（进板首帧必需）
+    func ensureActionButtonsLayout(on pageView: EmotionGroupPageView) {
+        guard actionButtonsView.superview === pageView else { return }
+        pageView.layoutIfNeeded()
+        actionButtonsView.layoutIfNeeded()
+    }
+
+    /// 删发遮罩矩形（网格坐标系）：整块容器（含安全区）扩到可见右下，底排绝对不漏
+    func actionButtonsFloatingRect(in grid: UICollectionView) -> CGRect? {
+        guard actionButtonsView.bounds.width > 1, actionButtonsView.bounds.height > 1 else { return nil }
+
+        var rect = actionButtonsView.convert(actionButtonsView.bounds, to: grid)
+        guard rect.width > 0, rect.height > 0 else { return nil }
+
+        let visibleMaxX = grid.contentOffset.x + grid.bounds.width
+        let visibleMaxY = grid.contentOffset.y + grid.bounds.height
+        rect.size.width = max(rect.width, visibleMaxX - rect.minX)
+        rect.size.height = max(rect.height, visibleMaxY - rect.minY)
+        return rect
+    }
+
+    /// 容器顶边柔光罩：上沿透明 → 下沿贴近面板色，挡住安全区漏光，同时软化灰块硬边
+    func updateActionButtonsVeil() {
+        let veil = actionButtonsVeilLayer
+        veil.frame = actionButtonsView.bounds
+        let top = UIColor.clear.cgColor
+        let mid = boardBackgroundColor.withAlphaComponent(0.35).resolvedColor(with: traitCollection).cgColor
+        let bottom = boardBackgroundColor.withAlphaComponent(0.92).resolvedColor(with: traitCollection).cgColor
+        veil.colors = [top, mid, bottom]
+        veil.locations = [0, 0.4, 1]
+    }
+
+    /// 关隐式动画写 alpha，避免滚动 / 切板「先亮再暗」
+    func setEmotionCell(_ cell: UICollectionViewCell, alpha: CGFloat, interactive: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        cell.alpha = alpha
+        CATransaction.commit()
+        cell.isUserInteractionEnabled = interactive
     }
 
     /// 同步读图：模型内建图 → 面板缓存 → nil
@@ -113,7 +158,6 @@ extension EmotionBoardView {
     func requestImageIfNeeded(for emotion: Emotion, in pageView: EmotionGroupPageView, at indexPath: IndexPath) {
         let id = emotion.identifier
 
-        // 已有图 / 缓存 / 加载中 / 失败过 / 无 loader：跳过
         guard
             emotion.image == nil,
             cachedImages[id] == nil,
@@ -122,7 +166,6 @@ extension EmotionBoardView {
             let imageLoader
         else { return }
 
-        // 标记加载中，防并发重复请求
         loadingImageIdentifiers.insert(id)
         imageLoader.emotionBoardView(self, loadImageFor: emotion) { [weak self, weak pageView] image in
             DispatchQueue.main.async {
@@ -130,14 +173,12 @@ extension EmotionBoardView {
                 self.loadingImageIdentifiers.remove(id)
 
                 if let image {
-                    // 入缓存，并同步 EmotionHelper；可见则刷新该格
                     self.cachedImages[id] = image
                     self.emotionHelper.updateImage(image, forIdentifier: id)
                     if pageView.collectionView.indexPathsForVisibleItems.contains(indexPath) {
                         pageView.collectionView.reloadItems(at: [indexPath])
                     }
                 } else {
-                    // 失败记入集合，本会话不再重试
                     self.failedImageIdentifiers.insert(id)
                 }
             }
